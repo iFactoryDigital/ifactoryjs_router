@@ -1,0 +1,23 @@
+{
+  "name": "@edenjs/router",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eden-js/router.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/eden-js/router/issues"
+  },
+  "homepage": "https://github.com/eden-js/router#readme",
+  "dependencies": {
+    "history": "^4.7.2",
+    "nanobar": "^0.4.2"
+  }
+}
