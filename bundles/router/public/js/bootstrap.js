@@ -1,6 +1,7 @@
 
 // Require local dependencies
 const Bar     = require('nanobar');
+const uuid    = require('uuid');
 const store   = require('default/public/js/store');
 const Events  = require('events');
 const socket  = require('socket/public/js/bootstrap');
@@ -19,8 +20,9 @@ class Router extends Events {
     super(...arguments);
 
     // Set mount
-    this._bar   = false;
-    this._store = store;
+    this._bar    = false;
+    this._store  = store;
+    this._states = {};
 
     // Set store values
     for (let key in window.eden) {
@@ -50,12 +52,16 @@ class Router extends Events {
     window.addEventListener('load', () => {
       // Get qs
       let qs = (this.history.location.pathname || '').split('?');
+      let id = uuid();
+
+      // set state
+      this._states[id] = this._store.get('state');
 
       // Push state
       this.history.replace({
         'state' : {
           'page'  : this._store.get('page'),
-          'state' : this._store.get('state'),
+          'state' : id,
           'mount' : this._store.get('mount')
         },
         'pathname' : this._store.get('mount').url + (qs[1] ? '?' + qs[1] : '')
@@ -117,45 +123,48 @@ class Router extends Events {
     // On state change
     this.history.listen(async (location) => {
       // Check state
-      if (location.state && Object.keys(location.state).length > 0) {
+      if (location.state && this._states[location.state]) {
+        // let state
+        let state = this._states[location.state];
+
         // Scroll to top
-        if (!location.state.prevent) window.scrollTo(0, 0);
+        if (!state.prevent) window.scrollTo(0, 0);
 
         // Set progress go
         this._bar.go(100);
 
         // Check prevent
-        if (location.state.prevent) return;
+        if (state.prevent) return;
 
         // Set title
         if (this._store.get('config').direction === 0) {
-          document.title = (location.state.page.title ? location.state.page.title + ' | ' : '');
+          document.title = (state.page.title ? state.page.title + ' | ' : '');
         } else if (this._store.get('config').direction === 1) {
-          document.title = this._store.get('config').title + (location.state.page.title ? ' | ' + location.state.page.title : '');
+          document.title = this._store.get('config').title + (state.page.title ? ' | ' + state.page.title : '');
         } else {
-          document.title = (location.state.page.title ? location.state.page.title + ' | ' : '') + this._store.get('config').title;
+          document.title = (state.page.title ? state.page.title + ' | ' : '') + this._store.get('config').title;
         }
 
         // Trigger
-        for (let key in location.state) {
+        for (let key in state) {
           // Set data
-          this._store.set(key, location.state[key]);
+          this._store.set(key, state[key]);
         }
 
         // Do layout
-        await this._store.hook('layout', location.state, (state) => {
+        await this._store.hook('layout', state, (state) => {
           // Emit events
           this._store.emit('layout', state);
         });
 
         // Check tags
-        this._tags(location.state.page);
+        this._tags(state.page);
 
         // Do route
         // we do this as a seperate trigger to prevent double rendering
         await this._store.hook('route', {
-          'mount' : location.state.mount,
-          'state' : location.state.state
+          'mount' : state.mount,
+          'state' : state.state
         }, (data) => {
           // Emit events
           this._store.emit('route', data);
@@ -189,7 +198,7 @@ class Router extends Events {
 
     // Create location
     this.history.push({
-      'state'    : {},
+      'state'    : '',
       'pathname' : url
     });
 
@@ -231,9 +240,15 @@ class Router extends Events {
       this._store.emit('load', data);
     });
 
+    // set uuid
+    let id = uuid();
+
+    // set state
+    this._states[id] = data;
+
     // Push state
     this.history.replace({
-      'state'    : data,
+      'state'    : id,
       'pathname' : data.mount.url
     });
   }
@@ -277,7 +292,7 @@ class Router extends Events {
 
     // Create location
     this.history.push({
-      'state'    : {},
+      'state'    : '',
       'pathname' : url
     });
 
@@ -294,6 +309,12 @@ class Router extends Events {
    * @param  {Object} state
    */
   async update (state) {
+    // set id
+    let id = uuid();
+
+    // set state
+    this._states[id] = this._store.get('state');
+
     // Let old
     let old = {
       'state' : {
@@ -329,6 +350,9 @@ class Router extends Events {
         // Trigger state
         this._store.emit('state', old);
       });
+
+      // set state as id
+      old.state.state = id;
 
       // Push state
       this.history.replace(old);
