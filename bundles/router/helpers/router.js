@@ -1,142 +1,468 @@
 
 // Require local dependencies
-const eden = require('eden');
-
-// Require local class dependencies
-const Helper = require('helper');
+const Bar     = require('nanobar');
+const uuid    = require('uuid');
+const store   = require('default/public/js/store');
+const Events  = require('events');
+const socket  = require('socket/public/js/bootstrap');
+const history = require('history').createBrowserHistory;
 
 /**
- * Create Route Helper class
+ * Build router class
  */
-class RouterHelper extends Helper {
+class Router extends Events {
 
   /**
-   * Construct Route Helper class
+   * Construct router class
    */
   constructor () {
     // Run super
-    super();
+    super(...arguments);
 
-    // Set private variables
-    this._creates = [];
-    this._updates = [];
-    this._removes = [];
+    // Set mount
+    this._bar    = false;
+    this._store  = store;
+    this._states = {};
 
-    // Bind public methods
-    this.create = this.create.bind(this);
+    // Set store values
+    for (let key in window.eden) {
+      // Set to store
+      this._store.set(key, window.eden[key]);
+    }
+
+    // Create history
+    this.history = history();
+
+    // Bind methods
+    this.go     = this.go.bind(this);
+    this.load   = this.load.bind(this);
+    this.build  = this.build.bind(this);
+    this.submit = this.submit.bind(this);
     this.update = this.update.bind(this);
-    this.remove = this.remove.bind(this);
 
     // Bind private methods
-    this._hook = this._hook.bind(this);
+    this._tags  = this._tags.bind(this);
+    this._form  = this._form.bind(this);
+    this._route = this._route.bind(this);
 
-    // Bind super private methods
-    this.__match = this.__match.bind(this);
+    // On state
+    socket.on('state', this.update);
 
-    // Set on eden post-routes
-    eden.post('eden.routes', this._hook);
+    // Run on document ready
+    window.addEventListener('load', () => {
+      // Get qs
+      let qs = (this.history.location.pathname || '').split('?');
+      let id = uuid();
+
+      // set state
+      this._states[id] = this._store.get('state');
+
+      // Push state
+      this.history.replace({
+        'state' : {
+          'page'  : this._store.get('page'),
+          'state' : id,
+          'mount' : this._store.get('mount')
+        },
+        'pathname' : this._store.get('mount').url + (qs[1] ? '?' + qs[1] : '')
+      });
+
+      // Initialize
+      this.building = this.build();
+    });
   }
 
   /**
-   * Creates route
-   *
-   * @param {object} route
+   * Initialize functionality
    */
-  create (route) {
-    // Push route
-    this._creates.push(route);
+  async build () {
+    // Set that
+    let that = this;
+
+    // Mount bar
+    this._bar = new Bar();
+
+    // Await mount
+    await this._store.hook('initialize', window.eden, (state) => {
+      // Mount
+      this._store.emit('initialize', state);
+    });
+
+    // Listen to go
+    this._store.on('navigate', this.go);
+
+    // Run on document ready
+    jQuery(document).on('click', 'a[href^="/"]', function (e) {
+      // Check
+      if (this.getAttribute('data-eden') === 'disable') return;
+
+      // Check target
+      if (this.getAttribute('target') && this.getAttribute('target').toLowerCase() === '_blank') return;
+
+      // Check link
+      if (that._route(this.getAttribute('href'))) {
+        // Prevent default
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    });
+
+    // Run on form submit
+    jQuery(document).on('submit', 'form', function (e) {
+      // Check
+      if (this.getAttribute('data-eden') === 'disable') return;
+
+      // Check form
+      if (that._form(this)) {
+        // Prevent default
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    });
+
+    // On state change
+    this.history.listen(async (location) => {
+      // Check state
+      if (location.state && this._states[location.state]) {
+        // get state
+        let state = this._states[location.state];
+
+        // Scroll to top
+        if (!state.prevent) window.scrollTo(0, 0);
+
+        // Set progress go
+        this._bar.go(100);
+
+        // Check prevent
+        if (state.prevent) return;
+
+        // Set title
+        if (this._store.get('config').direction === 0) {
+          document.title = (state.page.title ? state.page.title + ' | ' : '');
+        } else if (this._store.get('config').direction === 1) {
+          document.title = this._store.get('config').title + (state.page.title ? ' | ' + state.page.title : '');
+        } else {
+          document.title = (state.page.title ? state.page.title + ' | ' : '') + this._store.get('config').title;
+        }
+
+        // Trigger
+        for (let key in state) {
+          // Set data
+          this._store.set(key, state[key]);
+        }
+
+        // Do layout
+        await this._store.hook('layout', state, (state) => {
+          // Emit events
+          this._store.emit('layout', state);
+        });
+
+        // Check tags
+        this._tags(state.page);
+
+        // Do route
+        // we do this as a seperate trigger to prevent double rendering
+        await this._store.hook('route', {
+          'mount' : state.mount,
+          'state' : state.state
+        }, (data) => {
+          // Emit events
+          this._store.emit('route', data);
+        });
+      }
+    });
   }
 
   /**
-   * Updates route
+   * Loads url
    *
-   * @param {object} route
+   * @param  {String} url
+   *
+   * @returns {*}
    */
-  update (route) {
-    // Push route
-    this._updates.push(route);
+  async go (url) {
+    // Progress bar
+    this._bar.go(50);
+
+    // Check route
+    if (url.includes('//') || url.indexOf('#') === 0) {
+      // Timeout bar go
+      setTimeout(() => {
+        // Complete bar after 1 second
+        this._bar.go(100);
+      }, 1000);
+
+      // Return url
+      return window.location = url;
+    }
+
+    // Create location
+    this.history.push({
+      'state'    : {},
+      'pathname' : url
+    });
+
+    // Run try/catch
+    try {
+      // Load json from url
+      let res = await fetch(url, {
+        'mode'    : 'no-cors',
+        'headers' : {
+          'Accept' : 'application/json'
+        },
+        'redirect'    : 'follow',
+        'credentials' : 'same-origin'
+      });
+
+      // Load json
+      this.load(await res.json());
+    } catch (e) {
+      // Log error
+      setTimeout(() => {
+        // Complete bar after 1 second
+        this._bar.go(100);
+      }, 1000);
+
+      // Redirect
+      window.location = url;
+    }
   }
 
   /**
-   * Removes route
+   * Load data
    *
-   * @param {object} route
+   * @param {Object} data
    */
-  remove (route) {
-    // Push route
-    this._removes.push(route);
+  async load (data) {
+    // Await hook
+    await this._store.hook('load', data, (data) => {
+      // Do event
+      this._store.emit('load', data);
+    });
+
+    // load data
+    let id = uuid();
+
+    // set in states
+    this._states[id] = data;
+
+    // Push state
+    this.history.replace({
+      'state'    : id,
+      'pathname' : data.mount.url
+    });
   }
 
   /**
-   * Runs hook
+   * Submits form via ajax
    *
-   * @param {object[]} routes
+   * @param {HTMLElement} form
+   */
+  async submit (form) {
+    // Get url
+    let url = form.getAttribute('action') || window.location.href.split(this._store.get('config').domain)[1];
+
+    // Set request
+    let opts = {
+      'method'  : form.getAttribute('method') || 'POST',
+      'headers' : {
+        'Accept' : 'application/json'
+      },
+      'redirect'    : 'follow',
+      'credentials' : 'same-origin'
+    };
+
+    // Set body
+    if (opts.method.toUpperCase() === 'POST') {
+      // Set to body
+      opts.body = new FormData(form);
+    } else {
+      // Add to url
+      url += '?' + jQuery(form).serialize();
+    }
+
+    // Hook form
+    await this._store.hook('submit', {
+      'url'  : url,
+      'opts' : opts
+    }, ({ url, opts }) => {
+      // Do trigger
+      this._store.emit('submit', url, opts);
+    });
+
+    // Create location
+    this.history.push({
+      'state'    : '',
+      'pathname' : url
+    });
+
+    // Run fetch
+    let res = await fetch(url, opts);
+
+    // Run json
+    this.load(await res.json());
+  }
+
+  /**
+   * Updates page state
+   *
+   * @param  {Object} state
+   */
+  async update (state) {
+    // Let old
+    let id = uuid();
+
+    // set in states
+    this._states[id] = this._store.get('state');
+
+    // set old
+    let old = {
+      'state' : {
+        'page'  : this._store.get('page'),
+        'state' : id,
+        'mount' : this._store.get('mount')
+      },
+      'pathname' : this._store.get('mount').url
+    };
+
+    // Check pathname
+    if (old.pathname === state.url) {
+      // Check url
+      if (state.opts.mount && state.opts.mount.url) old.pathname = state.opts.mount.url;
+
+      // Replace state object
+      ['page', 'state', 'mount'].forEach((type) => {
+        // Skip type
+        if (!state.opts[type]) return;
+
+        // Set in store
+        for (let key in state.opts[type]) {
+          // Update state
+          old.state[type][key] = state.opts[type][key];
+        }
+
+        // Set state
+        this._store.set('type', old.state[type]);
+      });
+
+      // Hook form
+      await this._store.hook('state', old, (old) => {
+        // Trigger state
+        this._store.emit('state', old);
+      });
+
+      // Push state
+      this.history.replace(old);
+    }
+  }
+
+  /**
+   * Replace head tags from state
+   *
+   * @param {Object} page
    *
    * @private
    */
-  _hook (routes) {
-    // Loop creates
-    for (let a = 0; a < this._creates.length; a++) {
-      // Add to routes
-      routes.push(this._creates[a]);
+  _tags (page) {
+    // Check head
+    if (!page.head) return;
+
+    // Set header information
+    let found   = false;
+    let newHead = jQuery(page.head);
+    let nowHead = jQuery('[data-eden="head-start"]').nextAll('*');
+
+    // Loop all elements
+    for (let i = 0; i < nowHead.length; i++) {
+      // Check now head
+      found = false;
+
+      // Check break
+      if (nowHead[i].getAttribute('data-eden') === 'head-end') break;
+
+      // Loop now head
+      for (let x = 0; x < newHead.length; x++) {
+        // Check if found
+        if (nowHead[i].outerHTML === newHead[x].outerHTML) {
+          // Set found
+          found = true;
+        }
+      }
+
+      // Remove if not found
+      if (!found) jQuery(nowHead[i]).remove();
     }
 
-    // Loop updates
-    for (let b = 0; b < this._updates.length; b++) {
-      // Find match
-      if (this.__match(this._updates[b], routes)) continue;
+    // Loop all new elements
+    for (let i = 0; i < newHead.length; i++) {
+      // Check now head
+      found = false;
 
-      // Add to routes
-      routes.push(this._updates[b]);
-    }
+      // Loop now head
+      for (let x = 0; x < nowHead.length; x++) {
+        // Check if found
+        if (newHead[i].outerHTML === nowHead[x].outerHTML) {
+          // Set found
+          found = true;
+        }
+      }
 
-    // Loop removes
-    for (let c = 0; c < this._removes.length; c++) {
-      // Find match
-      const match = this.__match(this._removes[c], routes);
-
-      // Check match
-      if (match === -1) continue;
-
-      // Splice out match
-      routes.splice(match, 1);
+      // Remove if not found
+      if (!found) jQuery('[data-eden="head-end"]').before(newHead[i]);
     }
   }
 
   /**
-   * Matches route
+   * Submits form via ajax
    *
-   * @param   {object}   route
-   * @param   {object[]} routes
-   *
-   * @returns {number}
+   * @param {HTMLElement} form
    *
    * @private
+   * @return {Boolean}
    */
-  __match (route, routes) {
-    // Loop routes
-    for (let i = 0; i < routes.length; i++) {
-      // Check type, mount and route
-      if (route.type  !== routes[i].type)  continue;
-      if (route.mount !== routes[i].mount) continue;
-      if (route.route !== routes[i].route) continue;
+  _form (form) {
+    // Get form url
+    let url = form.getAttribute('action') || window.location.href.split(this._store.get('config').domain)[1];
 
-      // Set route
-      routes[i] = route;
-
-      // Return i
-      return i;
+    // Check if actual redirect
+    if (url.includes('//') || url.indexOf('#') === 0) {
+      // Return
+      return false;
     }
 
-    // Return -1
-    return -1;
+    // Submit form
+    this.submit(form);
+
+    // Return true
+    return true;
   }
 
+  /**
+   * Redirects to url
+   *
+   * @param  {String} url
+   *
+   * @private
+   * @return {Boolean}
+   */
+  _route (url) {
+    // Check if actual redirect
+    if (url.includes('//') || url.indexOf('#') === 0) return false;
+
+    // Check file
+    if (url.split('/').pop().split('.').length > 1) return false;
+
+    // Load next redirect
+    this.go(url);
+
+    // Return true
+    return true;
+  }
 }
 
 /**
- * Export new Route Helper instance
+ * Export new router function
  *
- * @return {RouteHelper}
+ * @return {router}
  */
-exports = module.exports = new RouterHelper();
+exports = module.exports = window.eden.router = new Router();
