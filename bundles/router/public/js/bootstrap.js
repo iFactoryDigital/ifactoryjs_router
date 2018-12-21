@@ -11,21 +11,20 @@ const history = require('history').createBrowserHistory;
  * Build router class
  */
 class Router extends Events {
-
   /**
    * Construct router class
    */
-  constructor () {
+  constructor() {
     // Run super
     super(...arguments);
 
     // Set mount
-    this._bar    = false;
-    this._store  = store;
+    this._bar = false;
+    this._store = store;
     this._states = {};
 
     // Set store values
-    for (let key in window.eden) {
+    for (const key in window.eden) {
       // Set to store
       this._store.set(key, window.eden[key]);
     }
@@ -34,15 +33,15 @@ class Router extends Events {
     this.history = history();
 
     // Bind methods
-    this.go     = this.go.bind(this);
-    this.load   = this.load.bind(this);
-    this.build  = this.build.bind(this);
+    this.go = this.go.bind(this);
+    this.load = this.load.bind(this);
+    this.build = this.build.bind(this);
     this.submit = this.submit.bind(this);
     this.update = this.update.bind(this);
 
     // Bind private methods
-    this._tags  = this._tags.bind(this);
-    this._form  = this._form.bind(this);
+    this._tags = this._tags.bind(this);
+    this._form = this._form.bind(this);
     this._route = this._route.bind(this);
 
     // On state
@@ -51,20 +50,20 @@ class Router extends Events {
     // Run on document ready
     window.addEventListener('load', () => {
       // Get qs
-      let qs = (this.history.location.pathname || '').split('?');
-      let id = uuid();
+      const qs = (this.history.location.pathname || '').split('?');
+      const id = uuid();
 
       // set state
       this._states[id] = this._store.get('state');
 
       // Push state
       this.history.replace({
-        'state' : {
-          'page'  : this._store.get('page'),
-          'state' : id,
-          'mount' : this._store.get('mount')
+        state : {
+          page  : this._store.get('page'),
+          state : id,
+          mount : this._store.get('mount'),
         },
-        'pathname' : this._store.get('mount').url + (qs[1] ? '?' + qs[1] : '')
+        pathname : this._store.get('mount').url + (qs[1] ? `?${qs[1]}` : ''),
       });
 
       // Initialize
@@ -75,9 +74,9 @@ class Router extends Events {
   /**
    * Initialize functionality
    */
-  async build () {
+  async build() {
     // Set that
-    let that = this;
+    const that = this;
 
     // Mount bar
     this._bar = new Bar();
@@ -125,7 +124,7 @@ class Router extends Events {
       // Check state
       if (location.state && this._states[location.state]) {
         // let state
-        let state = this._states[location.state];
+        const state = this._states[location.state];
 
         // Scroll to top
         if (!state.prevent) window.scrollTo(0, 0);
@@ -138,15 +137,15 @@ class Router extends Events {
 
         // Set title
         if (this._store.get('config').direction === 0) {
-          document.title = (state.page.title ? state.page.title + ' | ' : '');
+          document.title = (state.page.title ? `${state.page.title} | ` : '');
         } else if (this._store.get('config').direction === 1) {
-          document.title = this._store.get('config').title + (state.page.title ? ' | ' + state.page.title : '');
+          document.title = this._store.get('config').title + (state.page.title ? ` | ${state.page.title}` : '');
         } else {
-          document.title = (state.page.title ? state.page.title + ' | ' : '') + this._store.get('config').title;
+          document.title = (state.page.title ? `${state.page.title} | ` : '') + this._store.get('config').title;
         }
 
         // Trigger
-        for (let key in state) {
+        for (const key in state) {
           // Set data
           this._store.set(key, state[key]);
         }
@@ -163,8 +162,8 @@ class Router extends Events {
         // Do route
         // we do this as a seperate trigger to prevent double rendering
         await this._store.hook('route', {
-          'mount' : state.mount,
-          'state' : state.state
+          mount : state.mount,
+          state : state.state,
         }, (data) => {
           // Emit events
           this._store.emit('route', data);
@@ -180,7 +179,7 @@ class Router extends Events {
    *
    * @returns {*}
    */
-  async go (url) {
+  async go(url) {
     // Progress bar
     this._bar.go(50);
 
@@ -198,20 +197,20 @@ class Router extends Events {
 
     // Create location
     this.history.push({
-      'state'    : '',
-      'pathname' : url
+      state    : '',
+      pathname : url,
     });
 
     // Run try/catch
     try {
       // Load json from url
-      let res = await fetch(url, {
-        'mode'    : 'no-cors',
-        'headers' : {
-          'Accept' : 'application/json'
+      const res = await fetch(url, {
+        mode    : 'no-cors',
+        headers : {
+          Accept : 'application/json',
         },
-        'redirect'    : 'follow',
-        'credentials' : 'same-origin'
+        redirect    : 'follow',
+        credentials : 'same-origin',
       });
 
       // Load json
@@ -233,7 +232,7 @@ class Router extends Events {
    *
    * @param {Object} data
    */
-  async load (data) {
+  async load(data) {
     // Await hook
     await this._store.hook('load', data, (data) => {
       // Do event
@@ -241,15 +240,15 @@ class Router extends Events {
     });
 
     // set uuid
-    let id = uuid();
+    const id = uuid();
 
     // set state
     this._states[id] = data;
 
     // Push state
     this.history.replace({
-      'state'    : id,
-      'pathname' : data.mount.url
+      state    : id,
+      pathname : data.mount.url,
     });
   }
 
@@ -258,18 +257,18 @@ class Router extends Events {
    *
    * @param {HTMLElement} form
    */
-  async submit (form) {
+  async submit(form) {
     // Get url
     let url = form.getAttribute('action') || window.location.href.split(this._store.get('config').domain)[1];
 
     // Set request
-    let opts = {
-      'method'  : form.getAttribute('method') || 'POST',
-      'headers' : {
-        'Accept' : 'application/json'
+    const opts = {
+      method  : form.getAttribute('method') || 'POST',
+      headers : {
+        Accept : 'application/json',
       },
-      'redirect'    : 'follow',
-      'credentials' : 'same-origin'
+      redirect    : 'follow',
+      credentials : 'same-origin',
     };
 
     // Set body
@@ -278,13 +277,13 @@ class Router extends Events {
       opts.body = new FormData(form);
     } else {
       // Add to url
-      url += '?' + jQuery(form).serialize();
+      url += `?${jQuery(form).serialize()}`;
     }
 
     // Hook form
     await this._store.hook('submit', {
-      'url'  : url,
-      'opts' : opts
+      url,
+      opts,
     }, ({ url, opts }) => {
       // Do trigger
       this._store.emit('submit', url, opts);
@@ -292,12 +291,12 @@ class Router extends Events {
 
     // Create location
     this.history.push({
-      'state'    : '',
-      'pathname' : url
+      state    : '',
+      pathname : url,
     });
 
     // Run fetch
-    let res = await fetch(url, opts);
+    const res = await fetch(url, opts);
 
     // Run json
     this.load(await res.json());
@@ -308,21 +307,21 @@ class Router extends Events {
    *
    * @param  {Object} state
    */
-  async update (state) {
+  async update(state) {
     // set id
-    let id = uuid();
+    const id = uuid();
 
     // set state
     this._states[id] = this._store.get('state');
 
     // Let old
-    let old = {
-      'state' : {
-        'page'  : this._store.get('page'),
-        'state' : this._store.get('state'),
-        'mount' : this._store.get('mount')
+    const old = {
+      state : {
+        page  : this._store.get('page'),
+        state : this._store.get('state'),
+        mount : this._store.get('mount'),
       },
-      'pathname' : this._store.get('mount').url
+      pathname : this._store.get('mount').url,
     };
 
     // Check pathname
@@ -336,7 +335,7 @@ class Router extends Events {
         if (!state.opts[type]) return;
 
         // Set in store
-        for (let key in state.opts[type]) {
+        for (const key in state.opts[type]) {
           // Update state
           old.state[type][key] = state.opts[type][key];
         }
@@ -366,14 +365,14 @@ class Router extends Events {
    *
    * @private
    */
-  _tags (page) {
+  _tags(page) {
     // Check head
     if (!page.head) return;
 
     // Set header information
     let found   = false;
-    let newHead = jQuery(page.head);
-    let nowHead = jQuery('[data-eden="head-start"]').nextAll('*');
+    const newHead = jQuery(page.head);
+    const nowHead = jQuery('[data-eden="head-start"]').nextAll('*');
 
     // Loop all elements
     for (let i = 0; i < nowHead.length; i++) {
@@ -423,9 +422,9 @@ class Router extends Events {
    * @private
    * @return {Boolean}
    */
-  _form (form) {
+  _form(form) {
     // Get form url
-    let url = form.getAttribute('action') || window.location.href.split(this._store.get('config').domain)[1];
+    const url = form.getAttribute('action') || window.location.href.split(this._store.get('config').domain)[1];
 
     // Check if actual redirect
     if (url.includes('//') || url.indexOf('#') === 0) {
@@ -448,7 +447,7 @@ class Router extends Events {
    * @private
    * @return {Boolean}
    */
-  _route (url) {
+  _route(url) {
     // Check if actual redirect
     if (url.includes('//') || url.indexOf('#') === 0) return false;
 
