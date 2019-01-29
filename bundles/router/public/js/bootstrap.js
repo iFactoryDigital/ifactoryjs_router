@@ -54,15 +54,15 @@ class Router extends Events {
       const id = uuid();
 
       // set state
-      this._states[id] = this._store.get('state');
+      this._states[id] = {
+        page  : this._store.get('page'),
+        state : this._store.get('state'),
+        mount : this._store.get('mount'),
+      };
 
       // Push state
       this.history.replace({
-        state : {
-          page  : this._store.get('page'),
-          state : id,
-          mount : this._store.get('mount'),
-        },
+        state    : id,
         pathname : this._store.get('mount').url + (qs[1] ? `?${qs[1]}` : ''),
       });
 
