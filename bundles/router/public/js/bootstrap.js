@@ -1,5 +1,6 @@
 
 // Require local dependencies
+const qs      = require('qs');
 const Bar     = require('nanobar');
 const uuid    = require('uuid');
 const store   = require('default/public/js/store');
@@ -15,55 +16,52 @@ class Router extends Events {
    * Construct router class
    */
   constructor() {
-    // Run super
+    // run super
     super(...arguments);
 
-    // Set mount
-    this._bar = false;
-    this._store = store;
-    this._states = {};
+    // set mount
+    this.__bar = false;
+    this.__states = {};
 
-    // Set store values
-    for (const key in window.eden) {
-      // Set to store
-      this._store.set(key, window.eden[key]);
-    }
-
-    // Create history
+    // create history
     this.history = history();
+
+    // build methods
+    this.build = this.build.bind(this);
+
+    // crud methods
+
+    // render methods
+    this.render = this.render.bind(this);
+    this.renderHead = this.renderHead.bind(this);
+
+    // on methods
+    this.onClick = this.onClick.bind(this);
+    this.onSubmit = this.onSubmit.bind(this);
 
     // Bind methods
     this.go = this.go.bind(this);
     this.load = this.load.bind(this);
-    this.build = this.build.bind(this);
     this.submit = this.submit.bind(this);
     this.update = this.update.bind(this);
-
-    // Bind private methods
-    this._tags = this._tags.bind(this);
-    this._form = this._form.bind(this);
-    this._route = this._route.bind(this);
-
-    // On state
-    socket.on('state', this.update);
 
     // Run on document ready
     window.addEventListener('load', () => {
       // Get qs
-      const qs = (this.history.location.pathname || '').split('?');
       const id = uuid();
+      const query = (this.history.location.pathname || '').split('?');
 
       // set state
-      this._states[id] = {
-        page  : this._store.get('page'),
-        state : this._store.get('state'),
-        mount : this._store.get('mount'),
+      this.__states[id] = {
+        page  : store.get('page'),
+        state : store.get('state'),
+        mount : store.get('mount'),
       };
 
       // Push state
       this.history.replace({
         state    : id,
-        pathname : this._store.get('mount').url + (qs[1] ? `?${qs[1]}` : ''),
+        pathname : store.get('mount').url + (query[1] ? `?${query[1]}` : ''),
       });
 
       // Initialize
@@ -71,105 +69,106 @@ class Router extends Events {
     });
   }
 
+
+  // ////////////////////////////////////////////////////////////////////////////
+  //
+  // BUILD METHODS
+  //
+  // ////////////////////////////////////////////////////////////////////////////
+
   /**
    * Initialize functionality
    */
   async build() {
-    // Set that
-    const that = this;
+    // create bar element
+    this.__bar = new Bar();
 
-    // Mount bar
-    this._bar = new Bar();
+    // listen to go
+    store.on('router.go', this.go);
 
-    // Await mount
-    await this._store.hook('initialize', window.eden, (state) => {
-      // Mount
-      this._store.emit('initialize', state);
+    // on state
+    socket.on('state', this.update);
+
+    // on initialize
+    await store.hook('initialize', store, (state) => {
+      // mount
+      store.emit('initialize', state);
     });
 
-    // Listen to go
-    this._store.on('navigate', this.go);
+    // private funciton to extract target
+    const extractTarget = (e, type) => {
+      // get target
+      let { target } = e;
 
-    // Run on document ready
-    jQuery(document).on('click', 'a[href^="/"]', function (e) {
-      // Check
-      if (this.getAttribute('data-eden') === 'disable') return;
+      // find closest A
+      while (target && target.tagName !== type.toUpperCase()) {
+        // get parent
+        target = target.parentNode;
 
-      // Check target
-      if (this.getAttribute('target') && this.getAttribute('target').toLowerCase() === '_blank') return;
-
-      // Check link
-      if (that._route(this.getAttribute('href'))) {
-        // Prevent default
-        e.preventDefault();
-        e.stopPropagation();
+        // check parent
+        if (!target) {
+          // return no target
+          return false;
+        }
       }
-    });
 
-    // Run on form submit
-    jQuery(document).on('submit', 'form', function (e) {
-      // Check
-      if (this.getAttribute('data-eden') === 'disable') return;
+      // return target
+      return target;
+    };
 
-      // Check form
-      if (that._form(this)) {
-        // Prevent default
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    });
+    // add listners
+    document.addEventListener('click', e => this.onClick(extractTarget(e, 'a'), e));
+    document.addEventListener('submit', e => this.onSubmit(extractTarget(e, 'form'), e));
 
     // On state change
-    this.history.listen(async (location) => {
-      // Check state
-      if (location.state && this._states[location.state]) {
-        // let state
-        const state = this._states[location.state];
+    this.history.listen(this.render);
+  }
 
-        // Scroll to top
-        if (!state.prevent) window.scrollTo(0, 0);
 
-        // Set progress go
-        this._bar.go(100);
+  // ////////////////////////////////////////////////////////////////////////////
+  //
+  // CRUD METHODS
+  //
+  // ////////////////////////////////////////////////////////////////////////////
 
-        // Check prevent
-        if (state.prevent) return;
+  /**
+   * get url by parameters
+   *
+   * @param  {String} url
+   *
+   * @return {Promise}
+   */
+  async get(url, opts = {}) {
+    // set data
+    const data = url.includes('?') ? qs.parse(url.split('?')[1]) : {};
 
-        // Set title
-        if (this._store.get('config').direction === 0) {
-          document.title = (state.page.title ? `${state.page.title} | ` : '');
-        } else if (this._store.get('config').direction === 1) {
-          document.title = this._store.get('config').title + (state.page.title ? ` | ${state.page.title}` : '');
-        } else {
-          document.title = (state.page.title ? `${state.page.title} | ` : '') + this._store.get('config').title;
-        }
+    // fix url
+    url = url.includes('?') ? url.split('?')[1] : url;
 
-        // Trigger
-        for (const key in state) {
-          // Set data
-          this._store.set(key, state[key]);
-        }
+    // check url
+    if (Object.keys(data).length || Object.keys(opts).length) {
+      // stringify url
+      url += `?${qs.stringify(Object.assign({}, data, opts))}`
+    }
 
-        // Do layout
-        await this._store.hook('layout', state, (state) => {
-          // Emit events
-          this._store.emit('layout', state);
-        });
+    // load from either socket or fetch
+    if (socket.connected) {
 
-        // Check tags
-        this._tags(state.page);
+      console.log('connected');
+    } else {
+      // do fetch
+      const res = await fetch(url, {
+        mode    : 'no-cors',
+        headers : {
+          Accept : 'application/json',
+        },
+        redirect    : 'follow',
+        credentials : 'same-origin',
+      });
 
-        // Do route
-        // we do this as a seperate trigger to prevent double rendering
-        await this._store.hook('route', {
-          mount : state.mount,
-          state : state.state,
-        }, (data) => {
-          // Emit events
-          this._store.emit('route', data);
-        });
-      }
-    });
+      // Load json
+      return await res.json();
+    }
   }
 
   /**
@@ -181,14 +180,14 @@ class Router extends Events {
    */
   async go(url) {
     // Progress bar
-    this._bar.go(50);
+    this.__bar.go(50);
 
     // Check route
     if (url.includes('//') || url.indexOf('#') === 0) {
       // Timeout bar go
       setTimeout(() => {
         // Complete bar after 1 second
-        this._bar.go(100);
+        this.__bar.go(100);
       }, 1000);
 
       // Return url
@@ -219,7 +218,7 @@ class Router extends Events {
       // Log error
       setTimeout(() => {
         // Complete bar after 1 second
-        this._bar.go(100);
+        this.__bar.go(100);
       }, 1000);
 
       // Redirect
@@ -234,16 +233,16 @@ class Router extends Events {
    */
   async load(data) {
     // Await hook
-    await this._store.hook('load', data, (data) => {
+    await store.hook('load', data, (data) => {
       // Do event
-      this._store.emit('load', data);
+      store.emit('load', data);
     });
 
     // set uuid
     const id = uuid();
 
     // set state
-    this._states[id] = data;
+    this.__states[id] = data;
 
     // Push state
     this.history.replace({
@@ -259,7 +258,7 @@ class Router extends Events {
    */
   async submit(form) {
     // Get url
-    let url = form.getAttribute('action') || window.location.href.split(this._store.get('config').domain)[1];
+    let url = form.getAttribute('action') || window.location.href.split(store.get('config').domain)[1];
 
     // Set request
     const opts = {
@@ -281,12 +280,12 @@ class Router extends Events {
     }
 
     // Hook form
-    await this._store.hook('submit', {
+    await store.hook('submit', {
       url,
       opts,
     }, ({ url, opts }) => {
       // Do trigger
-      this._store.emit('submit', url, opts);
+      store.emit('submit', url, opts);
     });
 
     // Create location
@@ -312,16 +311,16 @@ class Router extends Events {
     const id = uuid();
 
     // set state
-    this._states[id] = this._store.get('state');
+    this.__states[id] = store.get('state');
 
     // Let old
     const old = {
       state : {
-        page  : this._store.get('page'),
-        state : this._store.get('state'),
-        mount : this._store.get('mount'),
+        page  : store.get('page'),
+        state : store.get('state'),
+        mount : store.get('mount'),
       },
-      pathname : this._store.get('mount').url,
+      pathname : store.get('mount').url,
     };
 
     // Check pathname
@@ -341,13 +340,13 @@ class Router extends Events {
         }
 
         // Set state
-        this._store.set('type', old.state[type]);
+        store.set('type', old.state[type]);
       });
 
       // Hook form
-      await this._store.hook('state', old, (old) => {
+      await store.hook('state', old, (old) => {
         // Trigger state
-        this._store.emit('state', old);
+        store.emit('state', old);
       });
 
       // set state as id
@@ -358,6 +357,70 @@ class Router extends Events {
     }
   }
 
+
+  // ////////////////////////////////////////////////////////////////////////////
+  //
+  // RENDER METHODS
+  //
+  // ////////////////////////////////////////////////////////////////////////////
+
+  /**
+   * render page
+   *
+   * @param  {Object}  location
+   *
+   * @return {Promise}
+   */
+  async render(location) {
+    // let state
+    const state = location.state ? this.__states[location.state] : null;
+
+    // check state
+    if (!state) return;
+
+    // Scroll to top
+    if (!state.prevent) window.scrollTo(0, 0);
+
+    // Set progress go
+    this.__bar.go(100);
+
+    // Check prevent
+    if (state.prevent) return;
+
+    // render title
+    if (store.get('config').direction === 0) {
+      document.title = (state.page.title ? `${state.page.title} | ` : '');
+    } else if (store.get('config').direction === 1) {
+      document.title = store.get('config').title + (state.page.title ? ` | ${state.page.title}` : '');
+    } else {
+      document.title = (state.page.title ? `${state.page.title} | ` : '') + store.get('config').title;
+    }
+
+    // Render header
+    this.renderHead(state.page);
+
+    // set value
+    Object.keys(state).forEach((key) => {
+      // Set data
+      store.set(key, state[key]);
+    });
+
+    // Do layout
+    await store.hook('layout', state, () => {
+      // Emit events
+      store.emit('layout', state);
+    });
+
+    // we do this as a seperate trigger to prevent double rendering
+    await store.hook('route', {
+      mount : state.mount,
+      state : state.state,
+    }, (data) => {
+      // Emit events
+      store.emit('route', data);
+    });
+  }
+
   /**
    * Replace head tags from state
    *
@@ -365,69 +428,144 @@ class Router extends Events {
    *
    * @private
    */
-  _tags(page) {
+  renderHead(page) {
     // Check head
     if (!page.head) return;
 
-    // Set header information
-    let found   = false;
-    const newHead = jQuery(page.head);
-    const nowHead = jQuery('[data-eden="head-start"]').nextAll('*');
+    // check elements that exist
+    const oldHead = [];
+    const mainNode = document.getElementById('eden-prehead');
+    let preHead = mainNode;
+    let newHead = document.createElement('template');
 
-    // Loop all elements
-    for (let i = 0; i < nowHead.length; i++) {
-      // Check now head
-      found = false;
+    // create shadow dom
+    newHead.innerHTML = page.head;
+    newHead = Array.from(newHead.content.childNodes);
 
-      // Check break
-      if (nowHead[i].getAttribute('data-eden') === 'head-end') break;
+    // set prehead
+    preHead = preHead.nextElementSibling || preHead.nextSibling
 
-      // Loop now head
-      for (let x = 0; x < newHead.length; x++) {
-        // Check if found
-        if (nowHead[i].outerHTML === newHead[x].outerHTML) {
-          // Set found
-          found = true;
-        }
-      }
+    // remove unwanted meta
+    while (preHead.id !== 'eden-posthead') {
+      // push to old head
+      oldHead.push(preHead);
 
-      // Remove if not found
-      if (!found) jQuery(nowHead[i]).remove();
+      // next prehead
+      preHead = preHead.nextElementSibling || preHead.nextSibling;
     }
 
-    // Loop all new elements
-    for (let i = 0; i < newHead.length; i++) {
-      // Check now head
-      found = false;
+    // combined head
+    const combinedHead = newHead.map((el) => {
+      // find old item
+      const found = oldHead.find((item) => {
+        // return found
+        return item.outerHTML.trim() === el.outerHTML.trim();
+      });
 
-      // Loop now head
-      for (let x = 0; x < nowHead.length; x++) {
-        // Check if found
-        if (newHead[i].outerHTML === nowHead[x].outerHTML) {
-          // Set found
-          found = true;
-        }
-      }
+      // return found
+      if (found) return found;
 
-      // Remove if not found
-      if (!found) jQuery('[data-eden="head-end"]').before(newHead[i]);
+      // return el
+      return el;
+    });
+
+    // map to element
+    for (let i = (combinedHead.length - 1); i >= 0; i--) {
+      // insert after
+      const next = i === (combinedHead.length - 1) ? document.getElementById('eden-posthead') : combinedHead[i + 1];
+
+      // after
+      mainNode.parentNode.insertBefore(combinedHead[i], next);
     }
+
+    // post head
+    let postHead = combinedHead.shift();
+        postHead = postHead.previousElementSibling || postHead.previousSibling;
+
+    // remove elements
+    while (postHead.id !== 'eden-prehead') {
+      // get current
+      const current = postHead;
+
+      // next prehead
+      postHead = postHead.previousElementSibling || postHead.previousSibling;
+
+      // remove
+      current.parentNode.removeChild(current);
+    }
+  }
+
+
+  // ////////////////////////////////////////////////////////////////////////////
+  //
+  // ON METHODS
+  //
+  // ////////////////////////////////////////////////////////////////////////////
+
+  /**
+   * Redirects to url
+   *
+   * @param {HTMLElement} link
+   * @param {Event}       e
+   *
+   * @return {Boolean}
+   */
+  onClick(link, e) {
+    // return if no form
+    if (!link) return;
+
+    // get href
+    let href = (link.href || '');
+
+    // set href
+    href = href.indexOf(`https://${store.get('config.domain')}`) === 0 ? href.replace(`https://${store.get('config.domain')}`, '') : href;
+
+    // Check if actual redirect
+    if (href.includes('//') || href.indexOf('#') === 0) {
+      // Return
+      return false;
+    }
+
+    // Check file
+    if (href.split('/').pop().split('.').length > 1) {
+      // return false
+      return false;
+    }
+
+    // Load next redirect
+    this.go(href);
+
+    // check e
+    if (e) {
+      // prevent default
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // Return true
+    return true;
   }
 
   /**
    * Submits form via ajax
    *
    * @param {HTMLElement} form
+   * @param {Event}       e
    *
-   * @private
    * @return {Boolean}
    */
-  _form(form) {
-    // Get form url
-    const url = form.getAttribute('action') || window.location.href.split(this._store.get('config').domain)[1];
+  onSubmit(form, e) {
+    // return if no form
+    if (!form) return;
+
+    // get href
+    let href = (form.href || '');
+
+    // set href
+    href = href.indexOf(`https://${store.get('config.domain')}`) === 0 ? href.replace(`https://${store.get('config.domain')}`, '') : href;
 
     // Check if actual redirect
-    if (url.includes('//') || url.indexOf('#') === 0) {
+    if (href.includes('//') || href.indexOf('#') === 0) {
       // Return
       return false;
     }
@@ -435,27 +573,12 @@ class Router extends Events {
     // Submit form
     this.submit(form);
 
-    // Return true
-    return true;
-  }
-
-  /**
-   * Redirects to url
-   *
-   * @param  {String} url
-   *
-   * @private
-   * @return {Boolean}
-   */
-  _route(url) {
-    // Check if actual redirect
-    if (url.includes('//') || url.indexOf('#') === 0) return false;
-
-    // Check file
-    if (url.split('/').pop().split('.').length > 1) return false;
-
-    // Load next redirect
-    this.go(url);
+    // check e
+    if (e) {
+      // prevent default
+      e.preventDefault();
+      e.stopPropagation();
+    }
 
     // Return true
     return true;
