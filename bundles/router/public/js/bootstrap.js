@@ -21,7 +21,7 @@ class EdenRouter extends Events {
 
     // set mount
     this.__bar = false;
-    this.__states = {};
+    this.__states = new Map();
 
     // create history
     this.history = history();
@@ -30,6 +30,11 @@ class EdenRouter extends Events {
     this.build = this.build.bind(this);
 
     // crud methods
+    this.get = this.get.bind(this);
+    this.put = this.put.bind(this);
+    this.post = this.post.bind(this);
+    this.delete = this.delete.bind(this);
+    this.request = this.request.bind(this);
 
     // render methods
     this.render = this.render.bind(this);
@@ -52,11 +57,11 @@ class EdenRouter extends Events {
       const query = (this.history.location.pathname || '').split('?');
 
       // set state
-      this.__states[id] = {
+      this.__states.set(id, {
         page  : store.get('page'),
         state : store.get('state'),
         mount : store.get('mount'),
-      };
+      });
 
       // Push state
       this.history.replace({
@@ -148,34 +153,88 @@ class EdenRouter extends Events {
    *
    * @return {Promise}
    */
-  async get(url, opts = {}) {
+  get(url, opts = {}) {
+    // return request
+    return this.request('GET', url, opts);
+  }
+
+  /**
+   * get url by parameters
+   *
+   * @param  {String} url
+   * @param  {Object} opts
+   *
+   * @return {Promise}
+   */
+  put(url, opts = {}) {
+    // return request
+    return this.request('PUT', url, opts);
+  }
+
+  /**
+   * get url by parameters
+   *
+   * @param  {String} url
+   * @param  {Object} opts
+   *
+   * @return {Promise}
+   */
+  post(url, opts = {}) {
+    // return request
+    return this.request('POST', url, opts);
+  }
+
+  /**
+   * get url by parameters
+   *
+   * @param  {String} url
+   * @param  {Object} opts
+   *
+   * @return {Promise}
+   */
+  delete(url, opts = {}) {
+    // return request
+    return this.request('DELETE', url, opts);
+  }
+
+  /**
+   * get url by parameters
+   *
+   * @param  {String} url
+   * @param  {Object} opts
+   *
+   * @return {Promise}
+   */
+  async request(method, url, opts = {}) {
     // set data
-    const data = url.includes('?') ? qs.parse(url.split('?')[1]) : {};
+    const request = {
+      method,
 
-    // fix url
-    url = url.includes('?') ? url.split('?')[1] : url;
-
-    // check url
-    if (Object.keys(data).length || Object.keys(opts).length) {
-      // stringify url
-      url += `?${qs.stringify(Object.assign({}, data, opts))}`;
-    }
-
-    // load from either socket or fetch
-    if (socket.connected) {
-      // call in socket
-      return await socket.route(url, opts);
-    }
-
-    // do fetch
-    const res = await fetch(url, {
       mode    : 'no-cors',
       headers : {
         Accept : 'application/json',
       },
       redirect    : 'follow',
       credentials : 'same-origin',
-    });
+    };
+
+    // check url
+    if (method.toLowerCase() === 'get' && Object.keys(opts).length) {
+      // set data
+      const data = url.includes('?') ? qs.parse(url.split('?')[1]) : {};
+
+      // fix url
+      url = url.includes('?') ? url.split('?')[1] : url;
+
+      // stringify url
+      url += `?${qs.stringify(Object.assign({}, data, opts))}`;
+    } else if (method.toLowerCase() !== 'get') {
+      // do body
+      request.body = JSON.stringify(opts);
+    }
+
+    // do fetch
+    const res = await fetch(url, request);
 
     // Load json
     return await res.json();
@@ -234,6 +293,7 @@ class EdenRouter extends Events {
       // return time
       return (new Date()).getTime() - time;
     } catch (e) {
+      console.log(e);
       // Log error
       setTimeout(() => {
         // Complete bar after 1 second
@@ -261,7 +321,7 @@ class EdenRouter extends Events {
     const id = uuid();
 
     // set state
-    this.__states[id] = data;
+    this.__states.set(id, data);
 
     // Push state
     this.history.replace({
@@ -330,7 +390,7 @@ class EdenRouter extends Events {
     const id = uuid();
 
     // set state
-    this.__states[id] = store.get('state');
+    this.__states.set(id, store.get('state'));
 
     // Let old
     const old = {
@@ -392,7 +452,7 @@ class EdenRouter extends Events {
    */
   async render(location) {
     // let state
-    const state = location.state ? this.__states[location.state] : null;
+    const state = location.state ? this.__states.get(location.state) : null;
 
     // check state
     if (!state) return;
