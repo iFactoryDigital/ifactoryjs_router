@@ -277,10 +277,11 @@ class EdenRouter extends Events {
     });
 
     // time end
+    const id   = uuid();
     const time = (new Date()).getTime();
 
     // time
-    console.time(`${url} via ${socket.connected ? 'socket' : 'fetch'}`);
+    console.time(`${url} via ${socket.connected ? 'socket' : 'fetch'} #${id}`);
 
     // Run try/catch
     try {
@@ -288,7 +289,7 @@ class EdenRouter extends Events {
       this.load(await this.get(url));
 
       // time end
-      console.timeEnd(`${url} via ${socket.connected ? 'socket' : 'fetch'}`);
+      console.timeEnd(`${url} via ${socket.connected ? 'socket' : 'fetch'} #${id}`);
 
       // return time
       return (new Date()).getTime() - time;
