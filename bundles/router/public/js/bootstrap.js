@@ -11,7 +11,7 @@ const history = require('history').createBrowserHistory;
 /**
  * Build router class
  */
-class Router extends Events {
+class EdenRouter extends Events {
   /**
    * Construct router class
    */
@@ -95,6 +95,15 @@ class Router extends Events {
       store.emit('initialize', state);
     });
 
+    // Pre user
+    store.pre('set', (data) => {
+      // Check key
+      if (data.key !== 'router') return;
+
+      // Set val
+      data.val = this;
+    });
+
     // private funciton to extract target
     const extractTarget = (e, type) => {
       // get target
@@ -135,6 +144,7 @@ class Router extends Events {
    * get url by parameters
    *
    * @param  {String} url
+   * @param  {Object} opts
    *
    * @return {Promise}
    */
@@ -148,28 +158,35 @@ class Router extends Events {
     // check url
     if (Object.keys(data).length || Object.keys(opts).length) {
       // stringify url
-      url += `?${qs.stringify(Object.assign({}, data, opts))}`
+      url += `?${qs.stringify(Object.assign({}, data, opts))}`;
     }
 
     // load from either socket or fetch
     if (socket.connected) {
-
-      console.log('connected');
-    } else {
-      // do fetch
-      const res = await fetch(url, {
-        mode    : 'no-cors',
-        headers : {
-          Accept : 'application/json',
-        },
-        redirect    : 'follow',
-        credentials : 'same-origin',
-      });
-
-      // Load json
-      return await res.json();
+      // call in socket
+      return await socket.route(url, opts);
     }
+
+    // do fetch
+    const res = await fetch(url, {
+      mode    : 'no-cors',
+      headers : {
+        Accept : 'application/json',
+      },
+      redirect    : 'follow',
+      credentials : 'same-origin',
+    });
+
+    // Load json
+    return await res.json();
   }
+
+
+  // ////////////////////////////////////////////////////////////////////////////
+  //
+  // PROXY METHODS
+  //
+  // ////////////////////////////////////////////////////////////////////////////
 
   /**
    * Loads url
@@ -200,20 +217,25 @@ class Router extends Events {
       pathname : url,
     });
 
+    // set id
+    const id = uuid();
+
+    // time end
+    const time = (new Date()).getTime();
+
+    // time
+    console.time(`${url} via ${socket.connected ? 'socket' : 'fetch'}`);
+
     // Run try/catch
     try {
       // Load json from url
-      const res = await fetch(url, {
-        mode    : 'no-cors',
-        headers : {
-          Accept : 'application/json',
-        },
-        redirect    : 'follow',
-        credentials : 'same-origin',
-      });
+      this.load(await this.get(url));
 
-      // Load json
-      this.load(await res.json());
+      // time end
+      console.timeEnd(`${url} via ${socket.connected ? 'socket' : 'fetch'}`);
+
+      // return time
+      return (new Date()).getTime() - time;
     } catch (e) {
       // Log error
       setTimeout(() => {
@@ -233,9 +255,9 @@ class Router extends Events {
    */
   async load(data) {
     // Await hook
-    await store.hook('load', data, (data) => {
+    await store.hook('load', data, (d) => {
       // Do event
-      store.emit('load', data);
+      store.emit('load', d);
     });
 
     // set uuid
@@ -443,7 +465,7 @@ class Router extends Events {
     newHead = Array.from(newHead.content.childNodes);
 
     // set prehead
-    preHead = preHead.nextElementSibling || preHead.nextSibling
+    preHead = preHead.nextElementSibling || preHead.nextSibling;
 
     // remove unwanted meta
     while (preHead.id !== 'eden-posthead') {
@@ -470,7 +492,7 @@ class Router extends Events {
     });
 
     // map to element
-    for (let i = (combinedHead.length - 1); i >= 0; i--) {
+    for (let i = (combinedHead.length - 1); i >= 0; i -= 1) {
       // insert after
       const next = i === (combinedHead.length - 1) ? document.getElementById('eden-posthead') : combinedHead[i + 1];
 
@@ -480,7 +502,7 @@ class Router extends Events {
 
     // post head
     let postHead = combinedHead.shift();
-        postHead = postHead.previousElementSibling || postHead.previousSibling;
+    postHead = postHead.previousElementSibling || postHead.previousSibling;
 
     // remove elements
     while (postHead.id !== 'eden-prehead') {
@@ -590,4 +612,4 @@ class Router extends Events {
  *
  * @return {router}
  */
-exports = module.exports = window.eden.router = new Router();
+exports = module.exports = window.eden.router = new EdenRouter();
