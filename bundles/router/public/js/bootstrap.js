@@ -217,9 +217,6 @@ class EdenRouter extends Events {
       pathname : url,
     });
 
-    // set id
-    const id = uuid();
-
     // time end
     const time = (new Date()).getTime();
 
