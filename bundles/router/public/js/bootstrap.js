@@ -592,7 +592,7 @@ class EdenRouter extends Events {
    */
   onClick(link, e) {
     // return if no form
-    if (!link) return;
+    if (!link || (link.getAttribute('href') || '').indexOf('#') === 0) return;
 
     // get href
     let href = (link.href || '');
