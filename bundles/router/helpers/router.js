@@ -111,9 +111,9 @@ class RouterHelper extends Helper {
     // loop routes
     for (let i = 0; i < routes.length; i++) {
       // check mount and route
-      if (route.type !== routes[i].type) continue;
+      if (route.path !== routes[i].path) continue;
       if (route.mount !== routes[i].mount) continue;
-      if (route.route !== routes[i].route) continue;
+      if (route.method !== routes[i].method) continue;
 
       // return match
       routes[i] = route;
