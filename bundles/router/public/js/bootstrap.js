@@ -520,7 +520,7 @@ class EdenRouter extends Events {
 
     // create shadow dom
     newHead.innerHTML = page.head;
-    newHead = Array.from(newHead.content.childNodes);
+    newHead = Array.from(newHead.childNodes || newHead.content.childNodes);
 
     // set prehead
     preHead = preHead.nextElementSibling || preHead.nextSibling;
