@@ -595,7 +595,7 @@ class EdenRouter extends Events {
     if (!link || (link.getAttribute('href') || '').indexOf('#') === 0) return false;
 
     // check target
-    if (link.getAttribute('target')) return false;
+    if (link.getAttribute('target') || link.getAttribute('role')) return false;
 
     // get href
     let href = (link.href || '');
