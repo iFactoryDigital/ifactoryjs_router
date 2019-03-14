@@ -132,7 +132,7 @@ class EdenRouter extends Events {
 
     // add listners
     document.addEventListener('click', e => this.onClick(extractTarget(e, 'a'), e));
-    document.addEventListener('submit', e => this.onSubmit(extractTarget(e, 'form'), e));
+    jQuery(document).on('submit', e => this.onSubmit(extractTarget(e, 'form'), e));
 
     // On state change
     this.history.listen(this.render);
