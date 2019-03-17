@@ -210,7 +210,6 @@ class EdenRouter extends Events {
     const request = {
       method,
 
-      mode    : 'no-cors',
       headers : {
         Accept : 'application/json',
       },
@@ -231,6 +230,9 @@ class EdenRouter extends Events {
     } else if (method.toLowerCase() !== 'get') {
       // do body
       request.body = JSON.stringify(opts);
+
+      // set JSON header
+      request.headers['Content-Type'] = 'application/json';
     }
 
     // do fetch
