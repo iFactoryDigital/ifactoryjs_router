@@ -287,8 +287,20 @@ class EdenRouter extends Events {
 
     // Run try/catch
     try {
-      // Load json from url
-      this.load(await this.get(url));
+      // loaded
+      let loaded = null;
+
+      // await on eden
+      await store.hook('page.load', url, loaded, async () => {
+        // Load json from url
+        loaded = await this.get(url);
+      });
+
+      // await on eden
+      await store.hook('page.render', loaded, () => {
+        // Load json from url
+        this.load(loaded);
+      });
 
       // time end
       console.timeEnd(`${url} via ${socket.connected ? 'socket' : 'fetch'} #${id}`);
