@@ -1,0 +1,21 @@
+language: node_js
+node_js:
+- '10'
+sudo: false
+install:
+- npm install --only=dev
+- npm ci
+before_script:
+- node node_modules/eslint/bin/eslint.js .
+script:
+- node ./edenconfig.js
+after_script:
+- npm test
+deploy:
+  provider: npm
+  email: alex@edenup.com
+  api_key:
+    secure: sUEY/ZZZW6w6yEx13IxpxLgba5J3LkMnlZxWJGKdJYgXWBlVpWevNq7yHxv+ouY5UNKplO8pFaWPy9XPE5gkKxE3wYiM1dK7h2knicz2Ec9qWqkp+bTkWa9ByHH/asN2Ack8T9GJLH4IehGmxhdCxEt8D3jJ8zy0n2J7NZrAY4LupBiOq70nNljWSHpwqs09JOg5xVqxrmCopNpP3+g40qZjsQByVxdDuK+PRa92lsvd7RR3FuKEuvRH+bLrA6A5DYWf+OosvpYlrHDGMhr88fkWcFW9PlGCioJfTcSqFKVK0XaRvk8nhxXBqC+ULGTpgFn01BLZhzKG5G680MybND0nFyNxD0emdMAGcSrwqDNBdQljlwI0Fe1mFl1Ujf5CYHGNTcxI/cDbooABU3fXH3wR+wCnTqee//jrqublgH3UGPwuTF3CZ2VqE2BciW+NshtSo01ukUNoSbaCDp3BxmOT1Cqlm1ihC22h3gTKnMClHxQU/gOLCS2gFoMHM1WG9runyk013vjI5jbhkXoEhnzo+LlpIJ6/HcPGtKEWl90RrkbKVSw+0UT7o3P6BJSDRPuDKsCbmwgPPCwuOPNd2kv3r197fg1yGfsIYB6QFvTbg4BHWTijXcH+KTPzeaA3gF8V+lSi1Z2xNfSM1n9U10QhpBVbcjwFIZGO/234hGU=
+  on:
+    tags: true
+    repo: eden-js/router
