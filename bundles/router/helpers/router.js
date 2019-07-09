@@ -72,13 +72,13 @@ class RouterHelper extends Helper {
    */
   _hook(routes) {
     // loop updates
-    for (let a = 0; a < this._creates.length; a++) {
+    for (let a = 0; a < this._creates.length; a += 1) {
       // add to routes
       routes.push(this._creates[a]);
     }
 
     // loop updates
-    for (let b = 0; b < this._updates.length; b++) {
+    for (let b = 0; b < this._updates.length; b += 1) {
       // find match
       if (this.__match(this._updates[b], routes)) continue;
 
@@ -87,7 +87,7 @@ class RouterHelper extends Helper {
     }
 
     // loop removes
-    for (let c = 0; c < this._updates.length; c++) {
+    for (let c = 0; c < this._updates.length; c += 1) {
       // find match
       const match = this.__match(this._updates[c], routes);
 
@@ -109,7 +109,7 @@ class RouterHelper extends Helper {
    */
   __match(route, routes) {
     // loop routes
-    for (let i = 0; i < routes.length; i++) {
+    for (let i = 0; i < routes.length; i += 1) {
       // check mount and route
       if (route.path !== routes[i].path) continue;
       if (route.mount !== routes[i].mount) continue;
@@ -132,4 +132,4 @@ class RouterHelper extends Helper {
  *
  * @return {RouterHelper}
  */
-exports = module.exports = new RouterHelper();
+module.exports = new RouterHelper();

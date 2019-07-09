@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 
 // Require local dependencies
 const qs      = require('qs');
@@ -8,6 +9,9 @@ const Events  = require('events');
 const socket  = require('socket/public/js/bootstrap');
 const history = require('history').createBrowserHistory;
 
+// set built
+let built = null;
+
 /**
  * Build router class
  */
@@ -15,9 +19,9 @@ class EdenRouter extends Events {
   /**
    * Construct router class
    */
-  constructor() {
+  constructor(...args) {
     // run super
-    super(...arguments);
+    super(...args);
 
     // set mount
     this.__bar = false;
@@ -268,8 +272,11 @@ class EdenRouter extends Events {
         this.__bar.go(100);
       }, 1000);
 
+      // set window url
+      window.location = url;
+
       // Return url
-      return window.location = url;
+      return url;
     }
 
     // Create location
@@ -318,6 +325,9 @@ class EdenRouter extends Events {
       // Redirect
       window.location = url;
     }
+
+    // return url
+    return url;
   }
 
   /**
@@ -352,10 +362,10 @@ class EdenRouter extends Events {
    */
   async submit(form) {
     // Get url
-    let url = form.getAttribute('action') || window.location.href.split(store.get('config').domain)[1];
+    let formUrl = form.getAttribute('action') || window.location.href.split(store.get('config').domain)[1];
 
     // Set request
-    const opts = {
+    const formOpts = {
       method  : form.getAttribute('method') || 'POST',
       headers : {
         Accept : 'application/json',
@@ -365,18 +375,18 @@ class EdenRouter extends Events {
     };
 
     // Set body
-    if (opts.method.toUpperCase() === 'POST') {
+    if (formOpts.method.toUpperCase() === 'POST') {
       // Set to body
-      opts.body = new FormData(form);
+      formOpts.body = new FormData(form);
     } else {
       // Add to url
-      url += `?${jQuery(form).serialize()}`;
+      formUrl += `?${jQuery(form).serialize()}`;
     }
 
     // Hook form
     await store.hook('submit', {
-      url,
-      opts,
+      url  : formUrl,
+      opts : formOpts,
     }, ({ url, opts }) => {
       // Do trigger
       store.emit('submit', url, opts);
@@ -385,11 +395,11 @@ class EdenRouter extends Events {
     // Create location
     this.history.push({
       state    : '',
-      pathname : url,
+      pathname : formUrl,
     });
 
     // Run fetch
-    const res = await fetch(url, opts);
+    const res = await fetch(formUrl, formOpts);
 
     // Run json
     this.load(await res.json());
@@ -428,19 +438,19 @@ class EdenRouter extends Events {
         if (!state.opts[type]) return;
 
         // Set in store
-        for (const key in state.opts[type]) {
+        Object.keys(state.opts[type]).forEach((key) => {
           // Update state
           old.state[type][key] = state.opts[type][key];
-        }
+        });
 
         // Set state
         store.set('type', old.state[type]);
       });
 
       // Hook form
-      await store.hook('state', old, (old) => {
+      await store.hook('state', old, (o) => {
         // Trigger state
-        store.emit('state', old);
+        store.emit('state', o);
       });
 
       // set state as id
@@ -682,9 +692,13 @@ class EdenRouter extends Events {
   }
 }
 
+// build eden router
+built = new EdenRouter();
+
 /**
  * Export new router function
  *
  * @return {router}
  */
-exports = module.exports = window.eden.router = new EdenRouter();
+window.eden.router = built;
+module.exports = built;
